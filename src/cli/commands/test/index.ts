@@ -71,8 +71,25 @@ async function test(...args: MethodArgs): Promise<TestCommandResult> {
   const ecosystem = getEcosystemForTest(options);
   if (ecosystem) {
     try {
-      const commandResult = await testEcosystem(ecosystem, paths, options);
-      return commandResult;
+      const { results } = await testEcosystem(ecosystem, paths, options);
+      const { errors, testResults } = separateErrorResults(results);
+      const stringifiedData = JSON.stringify(testResults, null, 2);
+      if (options.json) {
+        return TestCommandResult.createJsonTestCommandResult(stringifiedData);
+      }
+      const scanResults = [...Object.values(scanResultsByPath)];
+      const readableResult = await plugin.display(
+        scanResults,
+        testResults,
+        errors,
+        options,
+      );
+
+      return TestCommandResult.createHumanReadableTestCommandResult(
+        readableResult,
+        stringifiedData,
+      );
+      // return commandResult;
     } catch (error) {
       if (error instanceof Error) {
         throw error;
@@ -435,4 +452,24 @@ function displayResult(
     multiProjAdvice,
     dockerAdvice,
   );
+}
+
+function separateErrorResults(
+  results: Result[],
+): {
+  errors: string[];
+  testResults: TestResult[];
+} {
+  const errors: string[] = [];
+  const testResults: TestResult[] = [];
+
+  for (const i of results) {
+    if ('error' in i) {
+      errors.push(i.error.message);
+    } else {
+      testResults.push(i.testResult);
+    }
+  }
+
+  return { errors, testResults };
 }

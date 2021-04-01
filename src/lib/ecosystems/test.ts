@@ -14,14 +14,14 @@ export async function testEcosystem(
   ecosystem: Ecosystem,
   paths: string[],
   options: Options,
-): Promise<TestCommandResult> {
+): Promise<{ results: Result[] }> {
   const plugin = getPlugin(ecosystem);
   // TODO: this is an intermediate step before consolidating ecosystem plugins
   // to accept flows that act differently in the testDependencies step
-  if (plugin.test) {
-    const { readableResult: res } = await plugin.test(paths, options);
-    return TestCommandResult.createHumanReadableTestCommandResult(res, '');
-  }
+  // if (plugin.test) {
+  //   const { readableResult: res } = await plugin.test(paths, options);
+  //   return TestCommandResult.createHumanReadableTestCommandResult(res, '');
+  // }
   const scanResultsByPath: { [dir: string]: ScanResult[] } = {};
   for (const path of paths) {
     await spinner(`Scanning dependencies in ${path}`);
@@ -31,44 +31,24 @@ export async function testEcosystem(
   }
   spinner.clearAll();
   const allResults = await testDependencies(scanResultsByPath, options);
-  const { errors, testResults } = separateErrorResults(allResults);
-  const stringifiedData = JSON.stringify(testResults, null, 2);
-  if (options.json) {
-    return TestCommandResult.createJsonTestCommandResult(stringifiedData);
-  }
-  const emptyResults: ScanResult[] = [];
-  const scanResults = emptyResults.concat(...Object.values(scanResultsByPath));
-  const readableResult = await plugin.display(
-    scanResults,
-    testResults,
-    errors,
-    options,
-  );
+  // const { errors, testResults } = separateErrorResults(allResults);
+  // const stringifiedData = JSON.stringify(testResults, null, 2);
+  // if (options.json) {
+  //   return TestCommandResult.createJsonTestCommandResult(stringifiedData);
+  // }
+  // const scanResults = [...Object.values(scanResultsByPath)];
+  // const readableResult = await plugin.display(
+  //   scanResults,
+  //   testResults,
+  //   errors,
+  //   options,
+  // );
 
-  return TestCommandResult.createHumanReadableTestCommandResult(
-    readableResult,
-    stringifiedData,
-  );
-}
-
-function separateErrorResults(
-  results: Result[],
-): {
-  errors: string[];
-  testResults: TestResult[];
-} {
-  const errors: string[] = [];
-  const testResults: TestResult[] = [];
-
-  for (const i of results) {
-    if ('error' in i) {
-      errors.push(i.error.message);
-    } else {
-      testResults.push(i.testResult);
-    }
-  }
-
-  return { errors, testResults };
+  // return TestCommandResult.createHumanReadableTestCommandResult(
+  //   readableResult,
+  //   stringifiedData,
+  // );
+  return { results: allResults };
 }
 interface ResultSuccess {
   scanResult: ScanResult;
