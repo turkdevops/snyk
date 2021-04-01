@@ -30,10 +30,8 @@ export async function testEcosystem(
     scanResultsByPath[path] = pluginResponse.scanResults;
   }
   spinner.clearAll();
-  const [testResults, errors] = await testDependencies(
-    scanResultsByPath,
-    options,
-  );
+  const allResults = await testDependencies(scanResultsByPath, options);
+  const { errors, testResults } = separateErrorResults(allResults);
   const stringifiedData = JSON.stringify(testResults, null, 2);
   if (options.json) {
     return TestCommandResult.createJsonTestCommandResult(stringifiedData);
@@ -53,14 +51,44 @@ export async function testEcosystem(
   );
 }
 
+function separateErrorResults(
+  results: Result[],
+): {
+  errors: string[];
+  testResults: TestResult[];
+} {
+  const errors: string[] = [];
+  const testResults: TestResult[] = [];
+
+  for (const i of results) {
+    if ('error' in i) {
+      errors.push(i.error.message);
+    } else {
+      testResults.push(i.testResult);
+    }
+  }
+
+  return { errors, testResults };
+}
+interface ResultSuccess {
+  scanResult: ScanResult;
+  testResult: TestResult;
+}
+
+interface ResultError {
+  scanResult: ScanResult;
+  error: Error;
+}
+
+type Result = ResultError | ResultSuccess;
+
 async function testDependencies(
   scans: {
     [dir: string]: ScanResult[];
   },
   options: Options,
-): Promise<[TestResult[], string[]]> {
-  const results: TestResult[] = [];
-  const errors: string[] = [];
+): Promise<Result[]> {
+  const results: Result[] = [];
   for (const [path, scanResults] of Object.entries(scans)) {
     await spinner(`Testing dependencies in ${path}`);
     for (const scanResult of scanResults) {
@@ -80,18 +108,24 @@ async function testDependencies(
       try {
         const response = await makeRequest<TestDependenciesResponse>(payload);
         results.push({
-          issues: response.result.issues,
-          issuesData: response.result.issuesData,
-          depGraphData: response.result.depGraphData,
+          scanResult,
+          testResult: {
+            issues: response.result.issues,
+            issuesData: response.result.issuesData,
+            depGraphData: response.result.depGraphData,
+          },
         });
       } catch (error) {
         if (error.code >= 400 && error.code < 500) {
           throw new Error(error.message);
         }
-        errors.push('Could not test dependencies in ' + path);
+        results.push({
+          scanResult,
+          error: new Error('Could not test dependencies in ' + path),
+        });
       }
     }
   }
   spinner.clearAll();
-  return [results, errors];
+  return results;
 }
