@@ -3,6 +3,7 @@ import { SEVERITY } from '../../../../lib/snyk-test/common';
 import {
   AnnotatedIssue,
   IgnoreSettings,
+  TestResult,
 } from '../../../../lib/snyk-test/legacy';
 import {
   IacFileInDirectory,
@@ -17,6 +18,7 @@ export const VALID_FILE_TYPES = ['tf', 'json', 'yaml', 'yml'];
 
 export interface IacFileParsed extends IacFileData {
   jsonContent: Record<string, unknown> | TerraformScanInput;
+  projectType: IacProjectType;
   engineType: EngineType;
   docId?: number;
 }
@@ -91,13 +93,16 @@ export type SafeAnalyticsOutput = Omit<
 export enum EngineType {
   Kubernetes,
   Terraform,
+  Custom,
 }
+
 export interface PolicyMetadata {
   id: string;
   publicId: string;
   type: string;
   subType: string;
   title: string;
+  documentation?: string; // e.g. "https://snyk.io/security-rules/SNYK-CC-K8S-2",
   // Legacy field, still included in WASM eval output, but not in use.
   description: string;
   severity: SEVERITY | 'none'; // the 'null' value can be provided by the backend
@@ -113,6 +118,7 @@ export interface PolicyMetadata {
 // TODO: Needs to be fixed at the args module level.
 export type IaCTestFlags = Pick<
   Options & TestOptions,
+  | 'org'
   | 'insecure'
   | 'debug'
   | 'experimental'
@@ -130,6 +136,11 @@ export type IaCTestFlags = Pick<
   help?: 'help';
   q?: boolean;
   quiet?: boolean;
+  // This flag is internal and is used merely to route the smoke tests of the old flow.
+  // it should be removed together when the GA version completely deprecates the legacy remote processing flow.
+  legacy?: boolean;
+  // Allows the caller to provide the path to a WASM bundle.
+  rules?: string;
 } & TerraformPlanFlags;
 
 // Flags specific for Terraform plan scanning
@@ -203,12 +214,15 @@ export const VALID_RESOURCE_ACTIONS_FOR_FULL_SCAN: ResourceActions[] = [
 ];
 
 // Error codes used for Analytics & Debugging
+// Error names get converted to error string codes
 // Within a single module, increments are in 1.
 // Between modules, increments are in 10, according to the order of execution.
 export enum IaCErrorCodes {
   // local-cache errors
   FailedToInitLocalCacheError = 1000,
   FailedToCleanLocalCacheError = 1001,
+  FailedToDownloadRulesError = 1002,
+  FailedToExtractCustomRulesError = 1003,
 
   // file-loader errors
   NoFilesToScanError = 1010,
@@ -244,4 +258,9 @@ export enum IaCErrorCodes {
   // assert-iac-options-flag
   FlagError = 1090,
   FlagValueError = 1091,
+}
+
+export interface TestReturnValue {
+  results: TestResult | TestResult[];
+  failures?: IacFileInDirectory[];
 }

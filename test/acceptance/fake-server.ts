@@ -279,16 +279,13 @@ export function fakeServer(root, apikey) {
   server.get(
     root + '/cli-config/feature-flags/:featureFlag',
     (req, res, next) => {
+      const org = req.params.org;
       const flag = req.params.featureFlag;
-      if (
-        (req as any).params.org === 'no-flag' ||
-        flag === 'experimentalLocalExecIac'
-      ) {
+      const disabled = new Set(['optOutFromLocalExecIac']);
+      if (org === 'no-flag' || disabled.has(flag)) {
         res.send({
           ok: false,
-          userMessage: `Org ${
-            (req as any).org
-          } doesn\'t have \'${flag}\' feature enabled'`,
+          userMessage: `Org ${org} doesn't have '${flag}' feature enabled'`,
         });
         return next();
       }
@@ -306,7 +303,7 @@ export function fakeServer(root, apikey) {
         isPrivate: false,
         isLicensesEnabled: false,
         ignoreSettings: null,
-        org: 'test-org',
+        org: req.params.org || 'test-org',
       },
       customPolicies: {},
     });

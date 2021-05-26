@@ -9,12 +9,10 @@ import {
 } from './types';
 import * as path from 'path';
 import { SEVERITY } from '../../../../lib/snyk-test/common';
-import {
-  IacProjectType,
-  projectTypeByFileType,
-} from '../../../../lib/iac/constants';
+import { IacProjectType } from '../../../../lib/iac/constants';
 import { CustomError } from '../../../../lib/errors';
 import { extractLineNumber } from './extract-line-number';
+import { getErrorStringCode } from './error-utils';
 
 const SEVERITIES = [SEVERITY.LOW, SEVERITY.MEDIUM, SEVERITY.HIGH];
 
@@ -27,7 +25,7 @@ export function formatScanResults(
     // Relevant only for multi-doc yaml files
     const scannedResultsGroupedByDocId = groupMultiDocResults(scanResults);
     return scannedResultsGroupedByDocId.map((iacScanResult) =>
-      formatScanResult(iacScanResult, meta, options.severityThreshold),
+      formatScanResult(iacScanResult, meta, options),
     );
   } catch (e) {
     throw new FailedToFormatResults();
@@ -37,12 +35,13 @@ export function formatScanResults(
 const engineTypeToProjectType = {
   [EngineType.Kubernetes]: IacProjectType.K8S,
   [EngineType.Terraform]: IacProjectType.TERRAFORM,
+  [EngineType.Custom]: IacProjectType.CUSTOM,
 };
 
 function formatScanResult(
   scanResult: IacFileScanResult,
   meta: TestMeta,
-  severityThreshold?: SEVERITY,
+  { severityThreshold, json, sarif }: IaCTestFlags,
 ): FormattedResult {
   const formattedIssues = scanResult.violatedPolicies.map((policy) => {
     const cloudConfigPath =
@@ -50,7 +49,10 @@ function formatScanResult(
         ? [`[DocId:${scanResult.docId}]`].concat(policy.msg.split('.'))
         : policy.msg.split('.');
 
-    const lineNumber: number = extractLineNumber(scanResult, policy);
+    const shouldExtractLineNumber = json || sarif;
+    const lineNumber: number = shouldExtractLineNumber
+      ? extractLineNumber(scanResult, policy)
+      : -1;
 
     return {
       ...policy,
@@ -77,7 +79,7 @@ function formatScanResult(
         formattedIssues,
         severityThreshold,
       ),
-      projectType: projectTypeByFileType[scanResult.fileType],
+      projectType: scanResult.projectType,
     },
     meta: {
       ...meta,
@@ -142,6 +144,7 @@ export class FailedToFormatResults extends CustomError {
   constructor(message?: string) {
     super(message || 'Failed to format results');
     this.code = IaCErrorCodes.FailedToFormatResults;
+    this.strCode = getErrorStringCode(this.code);
     this.userMessage =
       'We failed printing the results, please contact support@snyk.io';
   }

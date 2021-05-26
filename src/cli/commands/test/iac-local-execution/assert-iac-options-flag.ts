@@ -1,13 +1,15 @@
 import { CustomError } from '../../../../lib/errors';
 import { args } from '../../../args';
+import { getErrorStringCode } from './error-utils';
 import { IaCErrorCodes, IaCTestFlags, TerraformPlanScanMode } from './types';
 
 const keys: (keyof IaCTestFlags)[] = [
+  'org',
   'debug',
   'insecure',
-  'experimental',
   'detectionDepth',
   'severityThreshold',
+  'rules',
   'json',
   'sarif',
   'json-file-output',
@@ -19,6 +21,7 @@ const keys: (keyof IaCTestFlags)[] = [
   'q',
   'quiet',
   'scan',
+  'legacy',
 ];
 const allowed = new Set<string>(keys);
 
@@ -32,12 +35,13 @@ function getFlagName(key: string) {
   return `${dashes}${flag}`;
 }
 
-class FlagError extends CustomError {
+export class FlagError extends CustomError {
   constructor(key: string) {
     const flag = getFlagName(key);
     const msg = `Unsupported flag "${flag}" provided. Run snyk iac test --help for supported flags.`;
     super(msg);
     this.code = IaCErrorCodes.FlagError;
+    this.strCode = getErrorStringCode(this.code);
     this.userMessage = msg;
   }
 }
@@ -50,6 +54,7 @@ export class FlagValueError extends CustomError {
     )}`;
     super(msg);
     this.code = IaCErrorCodes.FlagValueError;
+    this.strCode = getErrorStringCode(this.code);
     this.userMessage = msg;
   }
 }
