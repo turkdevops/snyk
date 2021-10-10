@@ -1,5 +1,6 @@
 import getWoof from '../src/cli/commands/woof/getWoof';
 
+// trivial change to test if CI is working
 describe('Woof command - Language option', () => {
   it('Default language is "en"', () => {
     // $ snyk woof
